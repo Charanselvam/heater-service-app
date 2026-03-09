@@ -49,11 +49,11 @@ export default function Home() {
   const getStatusVariant = (status: string) => {
     switch(status?.toLowerCase()) {
       case 'pending':
-        return 'warning'
+        return 'destructive'
       case 'warranty':
         return 'secondary'
       default:
-        return 'success'
+        return 'default'
     }
   }
 
@@ -122,7 +122,7 @@ export default function Home() {
                         {item.status === 'completed' && <CheckCircle className="mr-1 h-3 w-3" />}
                         {item.status || 'Completed'}
                       </Badge>
-                      <Badge variant="outline">Token: {item.job_token || 'N/A'}</Badge>
+                      <Badge className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" variant="outline">Token: {item.job_token || 'N/A'}</Badge>
                       <Badge variant="secondary">{item.heater_brand} • {item.capacity}</Badge>
                     </div>
                     <h3 className="text-xl font-bold text-slate-800">{item.customer_name}</h3>

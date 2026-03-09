@@ -1,8 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
-import { ArrowLeft, Save, Calendar, Hash, User, Phone, MapPin, Tag, FileText } from 'lucide-react'
+import { useRouter, useParams } from 'next/navigation'
+import { ArrowLeft, Save, Calendar, Hash, User, Phone, MapPin, Tag, FileText, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,36 +11,107 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 
-export default function AddService() {
+export default function EditService() {
   const router = useRouter()
+  const params = useParams()
+  const id = params.id
+
+  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
-    service_date: new Date().toISOString().split('T')[0],
+    service_date: '',
     job_token: '',
     customer_name: '',
     phone_number: '',
     address: '',
     heater_brand: '',
-    capacity: '15 Ltr',
+    capacity: '',
     technician_notes: '',
-    status: 'pending'
+    status: ''
   })
+
+  useEffect(() => {
+    async function fetchService() {
+      setIsLoading(true)
+      setError(null)
+      
+      const { data, error } = await supabase
+        .from('service_logs')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (error) {
+        setError('Could not load service data')
+        console.error('Error fetching service:', error)
+      } else if (data) {
+        setFormData({
+          service_date: data.service_date || '',
+          job_token: data.job_token || '',
+          customer_name: data.customer_name || '',
+          phone_number: data.phone_number || '',
+          address: data.address || '',
+          heater_brand: data.heater_brand || '',
+          capacity: data.capacity || '',
+          technician_notes: data.technician_notes || '',
+          status: data.status || 'pending'
+        })
+      }
+      setIsLoading(false)
+    }
+
+    if (id) fetchService()
+  }, [id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setError(null)
     
-    const { error } = await supabase.from('service_logs').insert([formData])
+    const { error } = await supabase
+      .from('service_logs')
+      .update(formData)
+      .eq('id', id)
     
     if (!error) {
       router.push('/')
       router.refresh()
     } else {
-      alert('Error saving data: ' + error.message)
+      setError('Error updating data: ' + error.message)
       setIsSubmitting(false)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-4 max-w-2xl mx-auto">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+            <p className="text-muted-foreground">Loading service details...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 max-w-2xl mx-auto">
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <div className="mt-4 flex justify-center">
+          <Link href="/">
+            <Button>Return to Home</Button>
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -51,14 +122,14 @@ export default function AddService() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-2xl font-bold">New Service Entry</h1>
+        <h1 className="text-2xl font-bold">Edit Service Entry</h1>
       </div>
 
       <form onSubmit={handleSubmit}>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Badge variant="outline" className="ml-2">New</Badge>
+              <Badge variant="outline">ID: {id?.slice(0,8)}...</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -221,10 +292,13 @@ export default function AddService() {
               className="min-w-[120px]"
             >
               {isSubmitting ? (
-                <>Saving...</>
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
               ) : (
                 <>
-                  <Save className="mr-2 h-4 w-4" /> Save Entry
+                  <Save className="mr-2 h-4 w-4" /> Update Entry
                 </>
               )}
             </Button>
