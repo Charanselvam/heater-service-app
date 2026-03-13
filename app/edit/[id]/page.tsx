@@ -1,9 +1,9 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react' // ✅ ADD useCallback
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
-import { ArrowLeft, Save, Calendar, Hash, User, Phone, MapPin, Tag, FileText, Loader2 } from 'lucide-react'
+import { ArrowLeft, Save, Calendar, Hash, User, Phone, MapPin, Tag, FileText, Loader2, X } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,8 +18,8 @@ import { Badge } from '@/components/ui/badge'
 export default function EditService() {
   const router = useRouter()
   const params = useParams()
-  const id = params.id
-  
+  const id = params.id as string
+
   const { user, loading: authLoading } = useAuth()
   const [brands, setBrands] = useState<any[]>([])
   const [capacities, setCapacities] = useState<any[]>([])
@@ -27,6 +27,12 @@ export default function EditService() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Image states
+  const [currentImages, setCurrentImages] = useState<string[]>([])
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
+
   const [formData, setFormData] = useState({
     service_date: '',
     job_token: '',
@@ -36,10 +42,70 @@ export default function EditService() {
     heater_brand: '',
     capacity: '',
     technician_notes: '',
-    status: ''
+    status: '',
+    payment_status: '',
   })
 
-  // ✅ DEFINE fetchOptions FIRST (before useEffect that uses it)
+  // Upload images helper
+  async function uploadImages(files: File[], serviceId: string): Promise<string[]> {
+    const urls: string[] = []
+    for (const file of files) {
+      const fileExt = file.name.split('.').pop() || 'jpg'
+      const fileName = `${crypto.randomUUID()}.${fileExt}`
+      const filePath = `service-logs/${serviceId}/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('service-images')
+        .upload(filePath, file, { cacheControl: '3600', upsert: false })
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('service-images')
+        .getPublicUrl(filePath)
+
+      urls.push(publicUrl)
+    }
+    return urls
+  }
+
+  // Delete image from storage
+  async function deleteImageFromStorage(imageUrl: string) {
+    try {
+      // Extract file path from URL
+      const urlParts = imageUrl.split('/')
+      const filePath = urlParts.slice(-2).join('/') // Gets "service-logs/ID/filename.jpg"
+
+      const { error } = await supabase.storage
+        .from('service-images')
+        .remove([filePath])
+
+      if (error) console.error('Error deleting image:', error)
+    } catch (err) {
+      console.error('Failed to delete image:', err)
+    }
+  }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    setSelectedFiles(prev => [...prev, ...files])
+    const newPreviews = files.map(file => URL.createObjectURL(file))
+    setPreviewUrls(prev => [...prev, ...newPreviews])
+  }
+
+  const removeNewImage = (index: number) => {
+    URL.revokeObjectURL(previewUrls[index])
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index))
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const removeExistingImage = async (url: string) => {
+    // Optionally delete from storage (comment out if you want to keep files)
+    await deleteImageFromStorage(url)
+    setCurrentImages(prev => prev.filter(u => u !== url))
+  }
+
   const fetchOptions = useCallback(async () => {
     const [bRes, cRes] = await Promise.all([
       supabase.from('heater_brands').select('name').eq('is_active', true),
@@ -49,13 +115,12 @@ export default function EditService() {
     if (cRes.data) setCapacities(cRes.data)
   }, [])
 
-  // ✅ DEFINE fetchService SECOND (before useEffect that uses it)
   const fetchService = useCallback(async () => {
     if (!id) return
-    
+
     setIsLoading(true)
     setError(null)
-    
+
     const { data, error } = await supabase
       .from('service_logs')
       .select('*')
@@ -75,40 +140,68 @@ export default function EditService() {
         heater_brand: data.heater_brand || '',
         capacity: data.capacity || '',
         technician_notes: data.technician_notes || '',
-        status: data.status || 'pending'
+        status: data.status || 'pending',
+        payment_status: data.payment_status || 'pending',
       })
+      setCurrentImages(
+        Array.isArray(data.images)
+          ? data.images
+          : typeof data.images === 'string'
+            ? (() => {
+              try {
+                const parsed = JSON.parse(data.images);
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
+              }
+            })()
+            : []
+      );
+
     }
     setIsLoading(false)
-  }, [id]) // ✅ Include id in dependency array
+  }, [id])
 
-  // ✅ NOW useEffect can safely call both functions
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login')
       return
     }
-    
-    // Run setup
+
     fetchOptions()
     if (id) fetchService()
-    
-  }, [user, authLoading, id, fetchOptions, fetchService]) // ✅ Add functions to deps
+
+  }, [user, authLoading, id, fetchOptions, fetchService])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     setError(null)
-    
-    const { error } = await supabase
-      .from('service_logs')
-      .update(formData)
-      .eq('id', id)
-    
-    if (!error) {
+
+    try {
+      let updatedImages = [...currentImages]
+
+      if (selectedFiles.length > 0) {
+        const newUrls = await uploadImages(selectedFiles, id)
+        updatedImages = [...updatedImages, ...newUrls]
+      }
+
+      const updateData = {
+        ...formData,
+        images: updatedImages
+      }
+
+      const { error } = await supabase
+        .from('service_logs')
+        .update(updateData)
+        .eq('id', id)
+
+      if (error) throw error
+
       router.push('/')
       router.refresh()
-    } else {
-      setError('Error updating  ' + error.message)
+    } catch (err: any) {
+      setError('Error updating: ' + err.message)
       setIsSubmitting(false)
     }
   }
@@ -171,7 +264,7 @@ export default function EditService() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Badge variant="outline">ID: {id?.slice(0,8)}...</Badge>
+              <Badge variant="outline">ID: {id?.slice(0, 8)}...</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -186,10 +279,10 @@ export default function EditService() {
                   type="date"
                   required
                   value={formData.service_date}
-                  onChange={e => setFormData({...formData, service_date: e.target.value})}
+                  onChange={e => setFormData({ ...formData, service_date: e.target.value })}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="job_token" className="flex items-center gap-2">
                   <Hash className="h-4 w-4" /> Token / No.
@@ -198,15 +291,15 @@ export default function EditService() {
                   id="job_token"
                   placeholder="e.g. 1/3, 1A"
                   value={formData.job_token}
-                  onChange={e => setFormData({...formData, job_token: e.target.value})}
+                  onChange={e => setFormData({ ...formData, job_token: e.target.value })}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value) => setFormData({...formData, status: value})}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
@@ -233,7 +326,7 @@ export default function EditService() {
                   required
                   placeholder="e.g. Mr. Ganesh"
                   value={formData.customer_name}
-                  onChange={e => setFormData({...formData, customer_name: e.target.value})}
+                  onChange={e => setFormData({ ...formData, customer_name: e.target.value })}
                 />
               </div>
 
@@ -247,10 +340,10 @@ export default function EditService() {
                     type="tel"
                     placeholder="e.g. 9876543210"
                     value={formData.phone_number}
-                    onChange={e => setFormData({...formData, phone_number: e.target.value})}
+                    onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="address" className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" /> Address / Location
@@ -259,15 +352,37 @@ export default function EditService() {
                     id="address"
                     placeholder="e.g. 123 Main St"
                     value={formData.address}
-                    onChange={e => setFormData({...formData, address: e.target.value})}
+                    onChange={e => setFormData({ ...formData, address: e.target.value })}
                   />
                 </div>
               </div>
             </div>
 
             <Separator />
+            <div className="space-y-2">
+              <Label htmlFor="payment_status" className="flex items-center gap-2">
+                💰 Payment Status
+              </Label>
+              <Select
+                value={formData.payment_status}
+                onValueChange={(value) => setFormData({ ...formData, payment_status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">⏳ Pending</SelectItem>
+                  <SelectItem value="partial">💸 Partial Paid</SelectItem>
+                  <SelectItem value="paid">✅ Paid</SelectItem>
+                  <SelectItem value="refunded">🔄 Refunded</SelectItem>
+                  <SelectItem value="partial_refunded">🔄 Partial Refund</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            {/* Heater Details - DYNAMIC OPTIONS */}
+            <Separator />
+
+            {/* Heater Details */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="heater_brand" className="flex items-center gap-2">
@@ -275,7 +390,7 @@ export default function EditService() {
                 </Label>
                 <Select
                   value={formData.heater_brand}
-                  onValueChange={(value) => setFormData({...formData, heater_brand: value})}
+                  onValueChange={(value) => setFormData({ ...formData, heater_brand: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Brand" />
@@ -287,12 +402,12 @@ export default function EditService() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="capacity">Capacity</Label>
                 <Select
                   value={formData.capacity}
-                  onValueChange={(value) => setFormData({...formData, capacity: value})}
+                  onValueChange={(value) => setFormData({ ...formData, capacity: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Capacity" />
@@ -316,7 +431,70 @@ export default function EditService() {
                 placeholder="Describe the issue or service performed..."
                 rows={4}
                 value={formData.technician_notes}
-                onChange={e => setFormData({...formData, technician_notes: e.target.value})}
+                onChange={e => setFormData({ ...formData, technician_notes: e.target.value })}
+              />
+            </div>
+
+            {/* Images Section */}
+            <Separator />
+            <div className="space-y-3">
+              <Label className="flex items-center gap-2">📸 Service Images</Label>
+
+              {/* Existing Images - SAFE VERSION */}
+              {Array.isArray(currentImages) && currentImages.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Existing ({currentImages.length})
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {currentImages.map((url, i) => (
+                      <div key={i} className="relative rounded-lg overflow-hidden border group">
+                        <img src={url} alt="existing" className="w-full h-28 object-cover" />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-1 right-1 h-5 w-5 p-0"
+                          onClick={() => removeExistingImage(url)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* New previews (unchanged) */}
+              {previewUrls.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    New to add ({previewUrls.length})
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {previewUrls.map((url, i) => (
+                      <div key={i} className="relative rounded-lg overflow-hidden border group">
+                        <img src={url} alt="new" className="w-full h-28 object-cover" />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-1 right-1 h-5 w-5 p-0"
+                          onClick={() => removeNewImage(i)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleImageSelect}
               />
             </div>
           </CardContent>
@@ -325,8 +503,8 @@ export default function EditService() {
             <Link href="/">
               <Button variant="outline" type="button">Cancel</Button>
             </Link>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={isSubmitting}
               className="min-w-[120px]"
             >

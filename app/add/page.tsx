@@ -1,9 +1,9 @@
 'use client'
-import { useState, useEffect } from 'react' // ADD useEffect
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/components/AuthProvider' // ADD THIS
-import { ArrowLeft, Save, Calendar, Hash, User, Phone, MapPin, Tag, FileText } from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
+import { ArrowLeft, Save, Calendar, Hash, User, Phone, MapPin, Tag, FileText, X } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,11 +15,17 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 
 export default function AddService() {
-  const { user, loading: authLoading } = useAuth() // ADD THIS
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [brands, setBrands] = useState<any[]>([]) // ADD THIS
-  const [capacities, setCapacities] = useState<any[]>([]) // ADD THIS
+
+  const [brands, setBrands] = useState<any[]>([])
+  const [capacities, setCapacities] = useState<any[]>([])
+
+  // Image upload states
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
+
   const [formData, setFormData] = useState({
     service_date: new Date().toISOString().split('T')[0],
     job_token: '',
@@ -29,10 +35,11 @@ export default function AddService() {
     heater_brand: '',
     capacity: '',
     technician_notes: '',
-    status: 'pending'
+    status: 'pending',
+    images: [] as string[],
+    payment_status: 'pending',
   })
 
-  // ADD THIS - Fetch dynamic options
   useEffect(() => {
     if (!authLoading && !user) router.push('/login')
     fetchOptions()
@@ -47,16 +54,83 @@ export default function AddService() {
     if (cRes.data) setCapacities(cRes.data)
   }
 
+  // Image upload helper
+  async function uploadImages(files: File[], serviceId: string): Promise<string[]> {
+    const urls: string[] = []
+    for (const file of files) {
+      const fileExt = file.name.split('.').pop() || 'jpg'
+      const fileName = `${crypto.randomUUID()}.${fileExt}`
+      const filePath = `service-logs/${serviceId}/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('service-images')
+        .upload(filePath, file, { cacheControl: '3600', upsert: false })
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('service-images')
+        .getPublicUrl(filePath)
+
+      urls.push(publicUrl)
+    }
+    return urls
+  }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    setSelectedFiles(prev => [...prev, ...files])
+    const newPreviews = files.map(file => URL.createObjectURL(file))
+    setPreviewUrls(prev => [...prev, ...newPreviews])
+  }
+
+  const removeNewImage = (index: number) => {
+    URL.revokeObjectURL(previewUrls[index])
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index))
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    
-    const { error } = await supabase.from('service_logs').insert([formData])
-    
-    if (!error) {
+
+    try {
+      const baseData = { ...formData, images: [] as string[] }
+
+      if (selectedFiles.length > 0) {
+        // 1. Insert to get ID
+        const { data: inserted, error: insertError } = await supabase
+          .from('service_logs')
+          .insert([baseData])
+          .select('id')
+          .single()
+
+        if (insertError || !inserted) throw insertError || new Error('Insert failed')
+
+        // 2. Upload images
+        const imageUrls = await uploadImages(selectedFiles, inserted.id)
+
+        // 3. Update record with image URLs
+        const { error: updateError } = await supabase
+          .from('service_logs')
+          .update({ images: imageUrls })
+          .eq('id', inserted.id)
+
+        if (updateError) throw updateError
+
+      } else {
+        // No images - just insert normally
+        const { error: insertError } = await supabase
+          .from('service_logs')
+          .insert([baseData])
+
+        if (insertError) throw insertError
+      }
+
       router.push('/')
       router.refresh()
-    } else {
+    } catch (error: any) {
       alert('Error saving data: ' + error.message)
       setIsSubmitting(false)
     }
@@ -95,10 +169,10 @@ export default function AddService() {
                   type="date"
                   required
                   value={formData.service_date}
-                  onChange={e => setFormData({...formData, service_date: e.target.value})}
+                  onChange={e => setFormData({ ...formData, service_date: e.target.value })}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="job_token" className="flex items-center gap-2">
                   <Hash className="h-4 w-4" /> Token / No.
@@ -107,15 +181,15 @@ export default function AddService() {
                   id="job_token"
                   placeholder="e.g. 1/3, 1A"
                   value={formData.job_token}
-                  onChange={e => setFormData({...formData, job_token: e.target.value})}
+                  onChange={e => setFormData({ ...formData, job_token: e.target.value })}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value) => setFormData({...formData, status: value})}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
@@ -142,7 +216,7 @@ export default function AddService() {
                   required
                   placeholder="e.g. Mr. Ganesh"
                   value={formData.customer_name}
-                  onChange={e => setFormData({...formData, customer_name: e.target.value})}
+                  onChange={e => setFormData({ ...formData, customer_name: e.target.value })}
                 />
               </div>
 
@@ -156,10 +230,10 @@ export default function AddService() {
                     type="tel"
                     placeholder="e.g. 9876543210"
                     value={formData.phone_number}
-                    onChange={e => setFormData({...formData, phone_number: e.target.value})}
+                    onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="address" className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" /> Address / Location
@@ -168,15 +242,37 @@ export default function AddService() {
                     id="address"
                     placeholder="e.g. 123 Main St"
                     value={formData.address}
-                    onChange={e => setFormData({...formData, address: e.target.value})}
+                    onChange={e => setFormData({ ...formData, address: e.target.value })}
                   />
                 </div>
               </div>
             </div>
 
             <Separator />
+            <div className="space-y-2">
+              <Label htmlFor="payment_status" className="flex items-center gap-2">
+                💰 Payment Status
+              </Label>
+              <Select
+                value={formData.payment_status}
+                onValueChange={(value) => setFormData({ ...formData, payment_status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">⏳ Pending</SelectItem>
+                  <SelectItem value="partial">💸 Partial Paid</SelectItem>
+                  <SelectItem value="paid">✅ Paid</SelectItem>
+                  <SelectItem value="refunded">🔄 Refunded</SelectItem>
+                  <SelectItem value="partial_refunded">🔄 Partial Refund</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            {/* Heater Details - CHANGED TO DYNAMIC */}
+            <Separator />
+
+            {/* Heater Details */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="heater_brand" className="flex items-center gap-2">
@@ -184,7 +280,7 @@ export default function AddService() {
                 </Label>
                 <Select
                   value={formData.heater_brand}
-                  onValueChange={(value) => setFormData({...formData, heater_brand: value})}
+                  onValueChange={(value) => setFormData({ ...formData, heater_brand: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Brand" />
@@ -196,12 +292,12 @@ export default function AddService() {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="capacity">Capacity</Label>
                 <Select
                   value={formData.capacity}
-                  onValueChange={(value) => setFormData({...formData, capacity: value})}
+                  onValueChange={(value) => setFormData({ ...formData, capacity: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Capacity" />
@@ -225,8 +321,43 @@ export default function AddService() {
                 placeholder="Describe the issue or service performed..."
                 rows={4}
                 value={formData.technician_notes}
-                onChange={e => setFormData({...formData, technician_notes: e.target.value})}
+                onChange={e => setFormData({ ...formData, technician_notes: e.target.value })}
               />
+            </div>
+
+            {/* Images Section */}
+            <Separator />
+            <div className="space-y-3">
+              <Label className="flex items-center gap-2">
+                📸 Service Images (optional)
+              </Label>
+
+              <Input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleImageSelect}
+                className="cursor-pointer"
+              />
+
+              {previewUrls.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {previewUrls.map((url, index) => (
+                    <div key={index} className="relative rounded-lg overflow-hidden border group">
+                      <img src={url} alt="preview" className="w-full h-28 object-cover" />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-1 right-1 h-6 w-6 p-0 opacity-80 hover:opacity-100"
+                        onClick={() => removeNewImage(index)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </CardContent>
 
@@ -234,8 +365,8 @@ export default function AddService() {
             <Link href="/">
               <Button variant="outline" type="button">Cancel</Button>
             </Link>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={isSubmitting}
               className="min-w-[120px]"
             >

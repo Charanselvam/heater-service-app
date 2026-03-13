@@ -3,11 +3,12 @@ import { Inter, Geist } from 'next/font/google'
 import './globals.css'
 import Link from 'next/link'
 import { Wrench } from 'lucide-react'
-import { cn } from "@/lib/utils";
 import { AuthProvider } from '@/components/AuthProvider'
+import { ThemeProvider } from "@/components/theme-provider"
 
-const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
-
+// You defined geist but used inter in the body. 
+// If you want to use Geist, pass it to className. 
+// For now, sticking to your original 'inter' usage.
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
@@ -21,24 +22,29 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={cn("font-sans", geist.variable)}>
-      <body className={inter.className}>
-        {/* Global Navigation Bar */}
-        <nav className="bg-primary text-primary-foreground shadow-md sticky top-0 z-50">
-          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-2">
-            <Wrench size={24} />
-            <Link href="/" className="text-xl font-bold tracking-tight">
-              ServiceTracker
-            </Link>
-          </div>
-        </nav>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.className} antialiased`}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          
+          {/* Global Navigation Bar */}
+          <nav className="bg-primary text-primary-foreground shadow-md sticky top-0 z-50">
+            <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-2">
+              <Wrench size={24} />
+              <Link href="/" className="text-xl font-bold tracking-tight hover:opacity-90 transition-opacity">
+                ServiceTracker
+              </Link>
+            </div>
+          </nav>
 
-        {/* Main Content Wrapper */}
-        <main className="max-w-3xl mx-auto min-h-screen">
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </main>
+          {/* Main Content Wrapper */}
+          {/* Added bg-background explicitly here as a fallback, though body handles it */}
+          <main className="max-w-3xl mx-auto min-h-screen bg-background">
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </main>
+
+        </ThemeProvider>
       </body>
     </html>
   )
