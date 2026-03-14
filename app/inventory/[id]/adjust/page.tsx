@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import type { InventoryItem } from '../../../page'
+import type { InventoryItem } from '../../page'
 
 // ─── Reason presets ───────────────────────────────────────────────────────────
 
