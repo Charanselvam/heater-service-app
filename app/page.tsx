@@ -7,7 +7,8 @@ import {
   PlusCircle, Phone, MapPin, Search, Trash2, Calendar,
   Edit, Clock, CheckCircle, ShieldAlert, LogOut, Settings,
   UserCheck, UserPlus, X, AlertTriangle, ChevronDown,
-  Wrench, RefreshCw, Filter
+  Wrench, RefreshCw, Filter,
+  Package
 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -129,17 +130,17 @@ function StatsBar({ services, role }: { services: ServiceLog[], role: string | n
 
   const items = role === 'admin'
     ? [
-        { label: 'Pending', value: stats.pending, color: 'text-amber-400' },
-        { label: 'Unassigned', value: stats.unassigned, color: 'text-rose-400' },
-        { label: 'Completed', value: stats.completed, color: 'text-emerald-400' },
-        { label: 'Warranty', value: stats.warranty, color: 'text-sky-400' },
-      ]
+      { label: 'Pending', value: stats.pending, color: 'text-amber-400' },
+      { label: 'Unassigned', value: stats.unassigned, color: 'text-rose-400' },
+      { label: 'Completed', value: stats.completed, color: 'text-emerald-400' },
+      { label: 'Warranty', value: stats.warranty, color: 'text-sky-400' },
+    ]
     : [
-        { label: 'Total', value: stats.total, color: 'text-foreground' },
-        { label: 'Pending', value: stats.pending, color: 'text-amber-400' },
-        { label: 'Completed', value: stats.completed, color: 'text-emerald-400' },
-        { label: 'Warranty', value: stats.warranty, color: 'text-sky-400' },
-      ]
+      { label: 'Total', value: stats.total, color: 'text-foreground' },
+      { label: 'Pending', value: stats.pending, color: 'text-amber-400' },
+      { label: 'Completed', value: stats.completed, color: 'text-emerald-400' },
+      { label: 'Warranty', value: stats.warranty, color: 'text-sky-400' },
+    ]
 
   return (
     <div className="grid grid-cols-4 gap-3 mb-6">
@@ -224,17 +225,17 @@ function parseImages(raw: string | string[] | undefined): string[] {
 // ─── Status / Payment config ──────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { icon: React.ReactNode; variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
-  pending:   { icon: <Clock className="h-3 w-3" />,        variant: 'destructive', label: 'Pending' },
-  completed: { icon: <CheckCircle className="h-3 w-3" />,  variant: 'default',     label: 'Completed' },
-  warranty:  { icon: <ShieldAlert className="h-3 w-3" />,  variant: 'secondary',   label: 'Warranty' },
+  pending: { icon: <Clock className="h-3 w-3" />, variant: 'destructive', label: 'Pending' },
+  completed: { icon: <CheckCircle className="h-3 w-3" />, variant: 'default', label: 'Completed' },
+  warranty: { icon: <ShieldAlert className="h-3 w-3" />, variant: 'secondary', label: 'Warranty' },
 }
 
 const PAYMENT_LABELS: Record<string, { label: string; className: string }> = {
-  paid:             { label: 'Paid',            className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
-  partial:          { label: 'Partial',         className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
-  pending:          { label: 'Unpaid',          className: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
-  refunded:         { label: 'Refunded',        className: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
-  partial_refunded: { label: 'Partial Refund',  className: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
+  paid: { label: 'Paid', className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+  partial: { label: 'Partial', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+  pending: { label: 'Unpaid', className: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
+  refunded: { label: 'Refunded', className: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
+  partial_refunded: { label: 'Partial Refund', className: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
 }
 
 // ─── Service Card ─────────────────────────────────────────────────────────────
@@ -387,7 +388,7 @@ function ServiceCard({ item, role, onDelete, onAssign }: ServiceCardProps) {
                   rel="noopener noreferrer"
                   className="flex-shrink-0 snap-start rounded-lg overflow-hidden ring-1 ring-border hover:ring-primary transition-all"
                 >
-                  <Image src={url} alt="Service photo" width={80} height={80} className="w-20 h-20 object-cover" />
+                  <Image src={url} alt="Service photo" width={80} height={80} priority loading="eager" className="w-20 h-20 object-cover" />
                 </a>
               ))}
               {images.length > 6 && (
@@ -410,19 +411,19 @@ export default function Home() {
   const router = useRouter()
   const { toasts, addToast, removeToast } = useToast()
 
-  const [services, setServices]       = useState<ServiceLog[]>([])
+  const [services, setServices] = useState<ServiceLog[]>([])
   const [technicians, setTechnicians] = useState<Technician[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [refreshing, setRefreshing]   = useState(false)
-  const [searchTerm, setSearchTerm]   = useState('')
-  const [filterTab, setFilterTab]     = useState<FilterTab>('all')
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterTab, setFilterTab] = useState<FilterTab>('all')
 
-  const [deleteId, setDeleteId]   = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const [assignId, setAssignId]               = useState<string | null>(null)
+  const [assignId, setAssignId] = useState<string | null>(null)
   const [selectedTechnician, setSelectedTech] = useState('')
-  const [isAssigning, setIsAssigning]         = useState(false)
+  const [isAssigning, setIsAssigning] = useState(false)
 
   const debouncedSearch = useDebounce(searchTerm, 300)
   const isAdmin = role === 'admin'
@@ -479,10 +480,10 @@ export default function Home() {
   }, [services, debouncedSearch])
 
   const tabCounts = useMemo<Record<FilterTab, number>>(() => ({
-    all:       baseFiltered.length,
-    pending:   baseFiltered.filter(s => s.status === 'pending').length,
+    all: baseFiltered.length,
+    pending: baseFiltered.filter(s => s.status === 'pending').length,
     completed: baseFiltered.filter(s => s.status === 'completed').length,
-    warranty:  baseFiltered.filter(s => s.status === 'warranty').length,
+    warranty: baseFiltered.filter(s => s.status === 'warranty').length,
   }), [baseFiltered])
 
   const filteredServices = useMemo(() =>
@@ -636,6 +637,13 @@ export default function Home() {
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               </Button>
               <ModeToggle />
+              {isAdmin && (
+              <Link href="/inventory">
+                <Button variant="outline" size="icon" className="h-8 w-8">
+                  <Package className="h-4 w-4" />
+                </Button>
+              </Link>
+              )}
               {isAdmin && (
                 <Link href="/admin/settings">
                   <Button variant="ghost" size="icon" className="h-8 w-8">
