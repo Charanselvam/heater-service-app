@@ -7,7 +7,7 @@ import {
   PlusCircle, Phone, MapPin, Search, Trash2, Calendar,
   Edit, Clock, CheckCircle, ShieldAlert, LogOut, Settings,
   UserCheck, UserPlus, X, AlertTriangle,
-  Wrench, RefreshCw, Filter, Package,
+  Wrench, RefreshCw, Filter, Package, ReceiptText,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -119,26 +119,26 @@ function ToastStack({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: stri
 
 function StatsBar({ services, role }: { services: ServiceLog[]; role: string | null }) {
   const stats = useMemo(() => ({
-    total:      services.length,
-    pending:    services.filter(s => s.status === 'pending').length,
-    completed:  services.filter(s => s.status === 'completed').length,
-    warranty:   services.filter(s => s.status === 'warranty').length,
+    total: services.length,
+    pending: services.filter(s => s.status === 'pending').length,
+    completed: services.filter(s => s.status === 'completed').length,
+    warranty: services.filter(s => s.status === 'warranty').length,
     unassigned: services.filter(s => s.status === 'pending' && !s.assigned_technician).length,
   }), [services])
 
   const items = role === 'admin'
     ? [
-        { label: 'Pending', value: stats.pending,    color: 'text-amber-400' },
-        { label: 'No Tech', value: stats.unassigned, color: 'text-rose-400' },
-        { label: 'Done',    value: stats.completed,  color: 'text-emerald-400' },
-        { label: 'Warr.',   value: stats.warranty,   color: 'text-sky-400' },
-      ]
+      { label: 'Pending', value: stats.pending, color: 'text-amber-400' },
+      { label: 'No Tech', value: stats.unassigned, color: 'text-rose-400' },
+      { label: 'Done', value: stats.completed, color: 'text-emerald-400' },
+      { label: 'Warr.', value: stats.warranty, color: 'text-sky-400' },
+    ]
     : [
-        { label: 'Total',   value: stats.total,     color: 'text-foreground' },
-        { label: 'Pending', value: stats.pending,   color: 'text-amber-400' },
-        { label: 'Done',    value: stats.completed, color: 'text-emerald-400' },
-        { label: 'Warr.',   value: stats.warranty,  color: 'text-sky-400' },
-      ]
+      { label: 'Total', value: stats.total, color: 'text-foreground' },
+      { label: 'Pending', value: stats.pending, color: 'text-amber-400' },
+      { label: 'Done', value: stats.completed, color: 'text-emerald-400' },
+      { label: 'Warr.', value: stats.warranty, color: 'text-sky-400' },
+    ]
 
   return (
     <div className="grid grid-cols-4 gap-2 mb-6">
@@ -162,10 +162,10 @@ function FilterTabs({ active, onChange, counts }: {
   counts: Record<FilterTab, number>
 }) {
   const tabs: { key: FilterTab; label: string }[] = [
-    { key: 'all',       label: 'All' },
-    { key: 'pending',   label: 'Pending' },
+    { key: 'all', label: 'All' },
+    { key: 'pending', label: 'Pending' },
     { key: 'completed', label: 'Done' },
-    { key: 'warranty',  label: 'Warr.' },
+    { key: 'warranty', label: 'Warr.' },
   ]
   return (
     <div className="flex gap-1 mb-4 bg-muted/40 border rounded-xl p-1">
@@ -222,16 +222,16 @@ const STATUS_CONFIG: Record<string, {
   variant: 'default' | 'secondary' | 'destructive' | 'outline'
   label: string
 }> = {
-  pending:   { icon: <Clock className="h-3 w-3" />,       variant: 'destructive', label: 'Pending' },
-  completed: { icon: <CheckCircle className="h-3 w-3" />, variant: 'default',     label: 'Completed' },
-  warranty:  { icon: <ShieldAlert className="h-3 w-3" />, variant: 'secondary',   label: 'Warranty' },
+  pending: { icon: <Clock className="h-3 w-3" />, variant: 'destructive', label: 'Pending' },
+  completed: { icon: <CheckCircle className="h-3 w-3" />, variant: 'default', label: 'Completed' },
+  warranty: { icon: <ShieldAlert className="h-3 w-3" />, variant: 'secondary', label: 'Warranty' },
 }
 
 const PAYMENT_LABELS: Record<string, { label: string; className: string }> = {
-  paid:             { label: 'Paid',           className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
-  partial:          { label: 'Partial',        className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
-  pending:          { label: 'Unpaid',         className: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
-  refunded:         { label: 'Refunded',       className: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
+  paid: { label: 'Paid', className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+  partial: { label: 'Partial', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+  pending: { label: 'Unpaid', className: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' },
+  refunded: { label: 'Refunded', className: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
   partial_refunded: { label: 'Partial Refund', className: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' },
 }
 
@@ -243,8 +243,8 @@ function ServiceCard({ item, role, onDelete, onAssign }: {
   onDelete: (id: string) => void
   onAssign: (id: string) => void
 }) {
-  const images  = parseImages(item.images)
-  const status  = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.completed
+  const images = parseImages(item.images)
+  const status = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.completed
   const payment = PAYMENT_LABELS[item.payment_status] ?? { label: 'Unknown', className: 'bg-muted text-muted-foreground border-muted' }
   const isAdmin = role === 'admin'
 
@@ -374,19 +374,19 @@ export default function Home() {
   const router = useRouter()
   const { toasts, addToast, removeToast } = useToast()
 
-  const [services, setServices]       = useState<ServiceLog[]>([])
+  const [services, setServices] = useState<ServiceLog[]>([])
   const [technicians, setTechnicians] = useState<Technician[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [refreshing, setRefreshing]   = useState(false)
-  const [searchTerm, setSearchTerm]   = useState('')
-  const [filterTab, setFilterTab]     = useState<FilterTab>('all')
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterTab, setFilterTab] = useState<FilterTab>('all')
 
-  const [deleteId, setDeleteId]     = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const [assignId, setAssignId]               = useState<string | null>(null)
+  const [assignId, setAssignId] = useState<string | null>(null)
   const [selectedTechnician, setSelectedTech] = useState('')
-  const [isAssigning, setIsAssigning]         = useState(false)
+  const [isAssigning, setIsAssigning] = useState(false)
 
   const debouncedSearch = useDebounce(searchTerm, 300)
   const isAdmin = role === 'admin'
@@ -459,10 +459,10 @@ export default function Home() {
   }, [services, debouncedSearch])
 
   const tabCounts = useMemo<Record<FilterTab, number>>(() => ({
-    all:       baseFiltered.length,
-    pending:   baseFiltered.filter(s => s.status === 'pending').length,
+    all: baseFiltered.length,
+    pending: baseFiltered.filter(s => s.status === 'pending').length,
     completed: baseFiltered.filter(s => s.status === 'completed').length,
-    warranty:  baseFiltered.filter(s => s.status === 'warranty').length,
+    warranty: baseFiltered.filter(s => s.status === 'warranty').length,
   }), [baseFiltered])
 
   const filteredServices = useMemo(() =>
@@ -516,7 +516,7 @@ export default function Home() {
   )
   if (!user) return null
 
-  const pageTitle    = isAdmin ? 'Service Dashboard' : 'My Assignments'
+  const pageTitle = isAdmin ? 'Service Dashboard' : 'My Assignments'
   const deleteTarget = services.find(s => s.id === deleteId)
 
   return (
@@ -601,6 +601,11 @@ export default function Home() {
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               </Button>
               <ModeToggle />
+              <Link href="/sales">
+                <Button variant="outline" size="icon" className="h-8 w-8" title="Sales">
+                  <ReceiptText className="h-4 w-4" />
+                </Button>
+              </Link>
               {isAdmin && (
                 <Link href="/inventory">
                   <Button variant="outline" size="icon" className="h-8 w-8">

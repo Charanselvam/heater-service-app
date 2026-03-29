@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Plus, Trash2, Settings, ArrowLeft, Loader2,
-  AlertCircle, Tag, Gauge, Cpu,
+  AlertCircle, Tag, Gauge, Cpu, Package,
 } from 'lucide-react'
 import {
   Select, SelectContent, SelectItem,
@@ -19,9 +19,9 @@ import Link from 'next/link'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Brand    { id: number; name: string; is_active: boolean }
+interface Brand { id: number; name: string; is_active: boolean }
 interface Capacity { id: number; size: string; is_active: boolean }
-interface Model    { id: string; brand: string; model: string; is_active: boolean }
+interface Model { id: string; brand: string; model: string; is_active: boolean }
 
 type SimpleTable = 'heater_brands' | 'heater_capacities'
 
@@ -74,9 +74,9 @@ function ManageSection<T extends { id: number }>({
   onDelete: (table: SimpleTable, id: number) => Promise<void>
   deletingId: number | null
 }) {
-  const [value, setValue]   = useState('')
+  const [value, setValue] = useState('')
   const [adding, setAdding] = useState(false)
-  const [error, setError]   = useState('')
+  const [error, setError] = useState('')
 
   async function handleAdd() {
     const trimmed = value.trim()
@@ -149,15 +149,15 @@ function ModelsSection({
   deletingId: string | null
 }) {
   const [selectedBrand, setSelectedBrand] = useState('')
-  const [modelName, setModelName]         = useState('')
-  const [adding, setAdding]               = useState(false)
-  const [error, setError]                 = useState('')
-  const [filterBrand, setFilterBrand]     = useState('__all__')
+  const [modelName, setModelName] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [error, setError] = useState('')
+  const [filterBrand, setFilterBrand] = useState('__all__')
 
   async function handleAdd() {
     const trimmed = modelName.trim()
     if (!selectedBrand) { setError('Select a brand first.'); return }
-    if (!trimmed)        { setError('Enter a model name.');  return }
+    if (!trimmed) { setError('Enter a model name.'); return }
     if (models.some(m =>
       m.brand.toLowerCase() === selectedBrand.toLowerCase() &&
       m.model.toLowerCase() === trimmed.toLowerCase()
@@ -174,7 +174,7 @@ function ModelsSection({
 
   // Group by brand
   const grouped = displayed.reduce<Record<string, Model[]>>((acc, m) => {
-    ;(acc[m.brand] ??= []).push(m)
+    ; (acc[m.brand] ??= []).push(m)
     return acc
   }, {})
 
@@ -306,15 +306,15 @@ export default function AdminSettings() {
   const { user, role, loading: authLoading } = useAuth()
   const router = useRouter()
 
-  const [brands, setBrands]         = useState<Brand[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
   const [capacities, setCapacities] = useState<Capacity[]>([])
-  const [models, setModels]         = useState<Model[]>([])
-  const [loadError, setLoadError]   = useState('')
+  const [models, setModels] = useState<Model[]>([])
+  const [loadError, setLoadError] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!authLoading && !user)            router.push('/login')
+    if (!authLoading && !user) router.push('/login')
     if (!authLoading && role !== 'admin') router.push('/')
   }, [authLoading, user, role, router])
 
@@ -386,6 +386,11 @@ export default function AdminSettings() {
           <Link href="/">
             <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl shrink-0">
               <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <Link href="/admin/catalog">
+            <Button variant="outline" size="sm" className="h-8 text-xs">
+              <Package className="mr-1.5 h-3.5 w-3.5" /> Catalog
             </Button>
           </Link>
           <div className="flex items-center gap-2.5">
